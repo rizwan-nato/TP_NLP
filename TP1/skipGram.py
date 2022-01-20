@@ -33,34 +33,34 @@ class SkipGram:
 		raise NotImplementedError('implement it!')
 
 	def sample(self, omit):
-        """samples negative words, ommitting those in set omit"""
-        raise NotImplementedError('this is easy, might want to do some preprocessing to speed up')
+		"""samples negative words, ommitting those in set omit"""
+		raise NotImplementedError('this is easy, might want to do some preprocessing to speed up')
 
 	def train(self):
-        for counter, sentence in enumerate(self.trainset):
-            sentence = filter(lambda word: word in self.vocab, sentence)
-
-            for wpos, word in enumerate(sentence):
-                wIdx = self.w2id[word]
-                winsize = np.random.randint(self.winSize) + 1
-                start = max(0, wpos - winsize)
-                end = min(wpos + winsize + 1, len(sentence))
-
-                for context_word in sentence[start:end]:
-                    ctxtId = self.w2id[context_word]
-                    if ctxtId == wIdx: continue
-                    negativeIds = self.sample({wIdx, ctxtId})
-                    self.trainWord(wIdx, ctxtId, negativeIds)
-                    self.trainWords += 1
-
-            if counter % 1000 == 0:
-                print(' > training %d of %d' % (counter, len(self.trainset)))
-                self.loss.append(self.accLoss / self.trainWords)
-                self.trainWords = 0
-                self.accLoss = 0.
+		for counter, sentence in enumerate(self.trainset):
+			sentence = filter(lambda word: word in self.vocab, sentence)
+			
+			for wpos, word in enumerate(sentence):
+				wIdx = self.w2id[word]
+				winsize = np.random.randint(self.winSize) + 1
+				start = max(0, wpos - winsize)
+				end = min(wpos + winsize + 1, len(sentence))
+				
+				for context_word in sentence[start:end]:
+					ctxtId = self.w2id[context_word]
+					if ctxtId == wIdx: continue
+					negativeIds = self.sample({wIdx, ctxtId})
+					self.trainWord(wIdx, ctxtId, negativeIds)
+					self.trainWords += 1
+					
+			if counter % 1000 == 0:
+				print(' > training %d of %d' % (counter, len(self.trainset)))
+				self.loss.append(self.accLoss / self.trainWords)
+				self.trainWords = 0
+				self.accLoss = 0.
 
 	def trainWord(self, wordId, contextId, negativeIds):
-        raise NotImplementedError('here is all the fun!')
+		raise NotImplementedError('here is all the fun!')
 
 	def save(self,path):
 		raise NotImplementedError('implement it!')
