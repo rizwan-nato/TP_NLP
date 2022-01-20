@@ -28,15 +28,15 @@ def loadPairs(path):
 class SkipGram:
 	def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize = 5, minCount = 5):
 		self.w2id = {} # word to ID mapping
-        self.trainset = {} # set of sentences
-        self.vocab = {} # list of valid words
-        raise NotImplementedError('implement it!')
+		self.trainset = {} # set of sentences
+		self.vocab = {} # list of valid words
+		raise NotImplementedError('implement it!')
 
-    def sample(self, omit):
+	def sample(self, omit):
         """samples negative words, ommitting those in set omit"""
         raise NotImplementedError('this is easy, might want to do some preprocessing to speed up')
 
-    def train(self):
+	def train(self):
         for counter, sentence in enumerate(self.trainset):
             sentence = filter(lambda word: word in self.vocab, sentence)
 
@@ -54,12 +54,12 @@ class SkipGram:
                     self.trainWords += 1
 
             if counter % 1000 == 0:
-                print ' > training %d of %d' % (counter, len(self.trainset))
+                print(' > training %d of %d' % (counter, len(self.trainset)))
                 self.loss.append(self.accLoss / self.trainWords)
                 self.trainWords = 0
                 self.accLoss = 0.
 
-    def trainWord(self, wordId, contextId, negativeIds):
+	def trainWord(self, wordId, contextId, negativeIds):
         raise NotImplementedError('here is all the fun!')
 
 	def save(self,path):
