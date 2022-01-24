@@ -1,0 +1,9 @@
+#Environement
+.venv/
+1-billion-word-language-modeling-benchmark-r13output/
+
+#Data
+*.csv
+*.zip
+*.tar.gz
+train.txt
