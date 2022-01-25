@@ -28,9 +28,26 @@ def loadPairs(path):
 class SkipGram:
 	def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize = 5, minCount = 5):
 		self.w2id = {} # word to ID mapping
-		self.trainset = {} # set of sentences
-		self.vocab = {} # list of valid words
-		raise NotImplementedError('implement it!')
+		self.trainset = sentences # set of sentences
+		self.vocab = {} # list of valid words and the P(w)
+
+		#Count all the occurence of the words
+		for sentence in self.trainset:
+			for word in sentence:
+				if word in self.vocab:
+					self.vocab[word] += 1
+				else:
+					self.vocab[word] = 1
+		
+		#Create a mapping from word to id and compute P(w)
+		for id, word in enumerate(self.vocab):
+			self.w2id[word] = id
+			self.vocab[word] = self.vocab[word]**(3/4)
+
+		total = sum(self.vocab.values())
+		for word in self.vocab:
+			self.vocab[word] = self.vocab[word]/total
+			
 
 	def sample(self, omit):
 		"""samples negative words, ommitting those in set omit"""
