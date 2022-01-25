@@ -2,7 +2,7 @@ from __future__ import division
 import argparse
 import pandas as pd
 
-# useful stuff
+# useful stuff	
 import numpy as np
 from scipy.special import expit
 from sklearn.preprocessing import normalize
@@ -30,6 +30,7 @@ class SkipGram:
 		self.w2id = {} # word to ID mapping
 		self.trainset = sentences # set of sentences
 		self.vocab = {} # list of valid words and the P(w)
+		self.negativeRate = negativeRate
 
 		#Count all the occurence of the words
 		for sentence in self.trainset:
@@ -47,11 +48,17 @@ class SkipGram:
 		total = sum(self.vocab.values())
 		for word in self.vocab:
 			self.vocab[word] = self.vocab[word]/total
-			
+
 
 	def sample(self, omit):
 		"""samples negative words, ommitting those in set omit"""
-		raise NotImplementedError('this is easy, might want to do some preprocessing to speed up')
+		list_to_choose = list(self.vocab.keys())
+		probability = list(self.vocab.values())
+		for index in omit:
+			probability[index] = 0
+		probability = np.array(probability)
+		probability = probability/np.sum(probability)
+		return np.random.choice(list_to_choose, self.negativeRate, p=probability)
 
 	def train(self):
 		for counter, sentence in enumerate(self.trainset):
