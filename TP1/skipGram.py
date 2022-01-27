@@ -34,7 +34,7 @@ def sigma(x,y):
 
 
 class SkipGram:
-    def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize=5, minCount=5, epochs = 10, lr = 1e-2):
+    def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize=5, minCount=5, epochs = 10, lr = 1e-3):
         self.w2id = {}  # word to ID mapping
         self.trainset = sentences  # set of sentences
         self.vocab = {}  # list of valid words and the P(w)
@@ -68,8 +68,8 @@ class SkipGram:
 
         #Initialize the embeddings randomly
         self.n_vocab = len(self.vocab.values())
-        self.W = np.random.random(size=(self.n_vocab, self.nEmbed))  * 0.01  #Scale down the initialization otherwise the loss is huge
-        self.C = np.random.random(size=(self.n_vocab, self.nEmbed))  * 0.01
+        self.W = np.random.random(size=(self.n_vocab, self.nEmbed))
+        self.C = np.random.random(size=(self.n_vocab, self.nEmbed))
 
 
     def sample(self, omit):
@@ -102,6 +102,7 @@ class SkipGram:
                         self.trainWords += 1
                 if counter % 100 == 0:
                     print(' > training %d of %d' % (counter, len(self.trainset)))
+
                     self.loss.append(self.accLoss / self.trainWords)
                     print(f'    > loss {self.loss[-1]}')
                     self.trainWords = 0
@@ -122,11 +123,11 @@ class SkipGram:
         for neg_id in negativeIds:
             vc_neg = self.C[neg_id]
             word_neg_context = sigma(-vw, vc_neg)
-            gradient_vw += word_neg_context * vc_neg
-            gradient_c_neg = word_neg_context * vw
-            self.C[neg_id] -= self.lr * gradient_c_neg
-        self.C[contextId] -= self.lr * gradient_vc
-        self.W[wordId] -= self.lr * gradient_vw
+            gradient_vw += (1 - word_neg_context) * vc_neg
+            gradient_c_neg = (1 - word_neg_context) * vw
+            self.C[neg_id] += self.lr * gradient_c_neg
+        self.C[contextId] += self.lr * gradient_vc
+        self.W[wordId] += self.lr * gradient_vw
 
 
     def save(self, path):
@@ -170,7 +171,7 @@ class SkipGram:
             data = pickle.load(f)
         sg = SkipGram(sentences=data["trainset"])
         sg.W = data["W"]
-        #TO complete but flemme
+        #TO complete but flemme W ca suffit 
         return sg
 
 
