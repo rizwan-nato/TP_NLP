@@ -10,12 +10,14 @@ __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pa
 
 
 def text2sentences(path):
-	# feel free to make a better tokenization/pre-processing
-	sentences = []
-	with open(path) as f:
-		for l in f:
-			sentences.append( l.lower().split() )
-	return sentences
+    sp = spacy.load('en_core_web_sm')
+    sentences = []
+    with open(path) as f:
+        for l in f:
+            sentence = sp(l)
+            sentences.append(sentence)
+    return sentences
+
 
 def loadPairs(path):
     data = pd.read_csv(path, delimiter='\t')
@@ -55,6 +57,7 @@ class SkipGram:
         for word in self.vocab:
             self.vocab[word] = self.vocab[word] / total
 
+        self.n_vocab = len(self.vocab.values())
 
     def sample(self, omit):
         """samples negative words, ommitting those in set omit"""
@@ -96,14 +99,22 @@ class SkipGram:
     def save(self, path):
         raise NotImplementedError('implement it!')
 
-	def similarity(self,word1,word2):
-		"""
-			computes similiarity between the two words. unknown words are mapped to one common vector
-		:param word1:
-		:param word2:
-		:return: a float \in [0,1] indicating the similarity (the higher the more similar)
-		"""
-		raise NotImplementedError('implement it!')
+    def similarity(self, word1, word2):
+        """
+        Computes similarity between the two words. Unknown words are mapped to one common vector
+        :param word1:
+        :param word2:
+        :return: a float \in [0,1] indicating the similarity (the higher the more similar)
+        """
+        if word1 in self.vocab and word2 in self.vocab:
+            ind1 = self.w2id[word1]
+            ind2 = self.w2id[word2]
+
+            cosine_sim = (self.W[ind1].dots(self.W[ind2])) / (
+                        np.linalg.norm(self.W[ind1]) * np.linalg.norm(self.W[ind2]))
+            return cosine_sim
+        else:
+            return 0
 
     @staticmethod
     def load(path):
