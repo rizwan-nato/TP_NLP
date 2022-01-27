@@ -7,6 +7,8 @@ import pandas as pd
 import spacy
 import numpy as np
 import re
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import normalize
 
 __authors__ = ['Rizwan Nato', 'Philippe Formont', 'Pauline Berberi', 'Zineb Lahrichi']
 __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pauline.berberi@student-cs.fr',
@@ -16,10 +18,15 @@ __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pa
 def text2sentences(path):
     # feel free to make a better tokenization/pre-processing
     sentences = []
+    nlp = spacy.load("en_core_web_sm")
     with open(path) as f:
         for l in f:
-            modified_string = re.sub(r'[^a-zA-Z0-9_\s]+', '', l) # everything except numbers,alphabets and _ would be replaced by space
-            sentences.append( modified_string.lower().split() )
+            sentence = []
+            doc = nlp(l.lower())
+            for token in doc:
+                if token.is_alpha:
+                    sentence.append(token.lemma_)
+            sentences.append( sentence )
     return sentences
 
 
@@ -48,15 +55,18 @@ class SkipGram:
         self.epochs = epochs
         self.lr = lr
 
+        count = {}
         # Count all the occurence of the words
         for sentence in self.trainset:
             for word in sentence:
-                word = word.lower()
-                if word in self.vocab:
-                    self.vocab[word] += 1
+                if word in count:
+                    count[word] += 1
                 else:
-                    self.vocab[word] = 1
+                    count[word] = 1
 
+        for word in count:
+            if count[word] >= self.minCounts:
+                self.vocab[word] = count[word]
         # Create a mapping from word to id and compute P(w)
         for id, word in enumerate(self.vocab):
             self.w2id[word] = id
@@ -68,20 +78,21 @@ class SkipGram:
 
         #Initialize the embeddings randomly
         self.n_vocab = len(self.vocab.values())
-        self.W = np.random.random(size=(self.n_vocab, self.nEmbed))
-        self.C = np.random.random(size=(self.n_vocab, self.nEmbed))
+        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001 #Need a scaling down: loss vanishes otherwise
+        self.C = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001
 
 
     def sample(self, omit):
         """samples negative words, ommitting those in set omit"""
         list_to_choose = list(self.vocab.keys())
         probability = list(self.vocab.values())
-        probability = np.array(probability)
-        for id in omit:
-            probability[id] = 0 #Put the probability of taking words we don't want to 0
-        probability = probability / np.sum(probability) #Re normalize the probability
-        negative_words = np.random.choice(list_to_choose, self.negativeRate, p=probability)
-        return [self.w2id[word] for word in negative_words]
+        neg_ids = []
+        while len(neg_ids) < self.negativeRate:
+            word = np.random.choice(list_to_choose, p=probability)
+            id = self.w2id[word]
+            if id not in omit:
+                neg_ids.append(id)
+        return neg_ids
 
     def train(self):
         self.loss = []
@@ -114,7 +125,7 @@ class SkipGram:
         # According to the paper, function to maximize: $log \sigma(v_c . v_w) + \sum_{negative_context} log \sigma (-v_c_neg . v.w)$
         # We can define the following loss:
         word_context = sigma(vw, vc)
-        loss = -(np.log(word_context) + np.sum([np.log(sigma(vw, self.C[neg_id])) for neg_id in negativeIds]) ) 
+        loss = -(np.log(word_context) + np.sum([np.log(sigma(-vw, self.C[neg_id])) for neg_id in negativeIds]) ) 
         self.accLoss += loss
 
         # Backpropagate the gradient. The training parameters are vw, vc and all the vc for negative sampling
@@ -125,9 +136,9 @@ class SkipGram:
             word_neg_context = sigma(-vw, vc_neg)
             gradient_vw += (1 - word_neg_context) * vc_neg
             gradient_c_neg = (1 - word_neg_context) * vw
-            self.C[neg_id] += self.lr * gradient_c_neg
-        self.C[contextId] += self.lr * gradient_vc
-        self.W[wordId] += self.lr * gradient_vw
+            self.C[neg_id] -= self.lr * gradient_c_neg
+        self.C[contextId] -= self.lr * gradient_vc
+        self.W[wordId] -= self.lr * gradient_vw
 
 
     def save(self, path):
@@ -171,7 +182,8 @@ class SkipGram:
             data = pickle.load(f)
         sg = SkipGram(sentences=data["trainset"])
         sg.W = data["W"]
-        #TO complete but flemme W ca suffit 
+        sg.vocab = data["vocab"]
+        sg.w2id = data["w2id"]
         return sg
 
 
@@ -186,14 +198,27 @@ if __name__ == '__main__':
 
     if not opts.test:
         sentences = text2sentences(opts.text)
-        sg = SkipGram(sentences)
+        sg = SkipGram(sentences, minCount=2, nEmbed=100, epochs=10, lr=1e-3)
         sg.train()
         sg.save(opts.model)
 
     else:
+        compteur = 0
         pairs = loadPairs(opts.text)
-
         sg = SkipGram.load(opts.model)
-        for a, b, _ in pairs:
+        Y_true = []
+        Y_pred = []
+        for a, b, y_true in pairs:
             # make sure this does not raise any exception, even if a or b are not in sg.vocab
-            print(sg.similarity(a, b))
+            pred = sg.similarity(a,b)
+            if pred == 0.5:
+                compteur += 1
+            print(pred, y_true)
+            Y_pred.append(pred*10)
+            Y_true.append(y_true)
+        Y_pred = np.array(Y_pred)
+        Y_true = np.array(Y_true)
+        print("Errors")
+        print(mean_squared_error(Y_true, Y_pred))
+        print(mean_squared_error(Y_true, [5 for y in Y_pred]))
+        print(compteur)
