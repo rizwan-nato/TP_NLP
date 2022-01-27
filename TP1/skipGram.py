@@ -78,8 +78,8 @@ class SkipGram:
 
         #Initialize the embeddings randomly
         self.n_vocab = len(self.vocab.values())
-        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001 #Need a scaling down: loss vanishes otherwise
-        self.C = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001
+        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.1 # Start with a better loss 
+        self.C = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.1
 
 
     def sample(self, omit):
@@ -95,9 +95,8 @@ class SkipGram:
         return neg_ids
 
     def train(self):
-        self.loss = []
         for i in range(self.epochs):
-            print(f"Training Epoch {i}")
+            print(f"Training Epoch {i+1}")
             for counter, sentence in enumerate(self.trainset):
                 sentence = list(filter(lambda word: word in self.vocab, sentence))
                 for wpos, word in enumerate(sentence):
@@ -201,7 +200,7 @@ if __name__ == '__main__':
 
     if not opts.test:
         sentences = text2sentences(opts.text)
-        sg = SkipGram(sentences, minCount=2, nEmbed=100, epochs=10, lr=1e-3)
+        sg = SkipGram(sentences, minCount=1, nEmbed=300, epochs=1, lr=1e-2)
         sg.train()
         sg.save(opts.model)
 
