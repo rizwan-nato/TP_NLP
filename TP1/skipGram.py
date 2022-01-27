@@ -34,7 +34,7 @@ def sigma(x,y):
 
 
 class SkipGram:
-    def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize=5, minCount=5, epochs = 10, lr = 1e-3):
+    def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize=5, minCount=5, epochs = 2, lr = 1e-3):
         self.w2id = {}  # word to ID mapping
         self.trainset = sentences  # set of sentences
         self.vocab = {}  # list of valid words and the P(w)
@@ -142,7 +142,7 @@ class SkipGram:
             'nEmbed': self.nEmbed,
             'loss': self.loss,
             'minCounts': self.minCounts,
-            'max_iter': self.max_iter,
+            'epochs': self.epochs,
             'lr': self.lr
         }
         with open(path, 'wb') as f:
