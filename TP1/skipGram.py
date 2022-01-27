@@ -6,6 +6,7 @@ from operator import neg
 import pandas as pd
 import spacy
 import numpy as np
+import re
 
 __authors__ = ['Rizwan Nato', 'Philippe Formont', 'Pauline Berberi', 'Zineb Lahrichi']
 __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pauline.berberi@student-cs.fr',
@@ -13,12 +14,13 @@ __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pa
 
 
 def text2sentences(path):
-	# feel free to make a better tokenization/pre-processing
-	sentences = []
-	with open(path) as f:
-		for l in f:
-			sentences.append( l.lower().split() )
-	return sentences
+    # feel free to make a better tokenization/pre-processing
+    sentences = []
+    with open(path) as f:
+        for l in f:
+            modified_string = re.sub(r'[^a-zA-Z0-9_\s]+', '', l) # everything except numbers,alphabets and _ would be replaced by space
+            sentences.append( modified_string.lower().split() )
+    return sentences
 
 
 def loadPairs(path):
@@ -66,8 +68,8 @@ class SkipGram:
 
         #Initialize the embeddings randomly
         self.n_vocab = len(self.vocab.values())
-        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001   #Scale down the initialization otherwise there are some overflows
-        self.C = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001
+        self.W = np.random.random(size=(self.n_vocab, self.nEmbed))  * 0.01  #Scale down the initialization otherwise the loss is huge
+        self.C = np.random.random(size=(self.n_vocab, self.nEmbed))  * 0.01
 
 
     def sample(self, omit):
@@ -100,11 +102,10 @@ class SkipGram:
                         self.trainWords += 1
                 if counter % 100 == 0:
                     print(' > training %d of %d' % (counter, len(self.trainset)))
-
-            self.loss.append(self.accLoss / self.trainWords)
-            print(f'    > loss {self.loss[-1]}')
-            self.trainWords = 0
-            self.accLoss = 0.
+                    self.loss.append(self.accLoss / self.trainWords)
+                    print(f'    > loss {self.loss[-1]}')
+                    self.trainWords = 0
+                    self.accLoss = 0.
 
     def trainWord(self, wordId, contextId, negativeIds):
         vc = self.C[contextId]
@@ -120,12 +121,12 @@ class SkipGram:
         gradient_vc = (word_context-1) * vw
         for neg_id in negativeIds:
             vc_neg = self.C[neg_id]
-            word_neg_context = sigma(vw, vc_neg)
+            word_neg_context = sigma(-vw, vc_neg)
             gradient_vw += word_neg_context * vc_neg
             gradient_c_neg = word_neg_context * vw
             self.C[neg_id] -= self.lr * gradient_c_neg
         self.C[contextId] -= self.lr * gradient_vc
-        self.W[contextId] -= self.lr * gradient_vw
+        self.W[wordId] -= self.lr * gradient_vw
 
 
     def save(self, path):
