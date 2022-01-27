@@ -43,7 +43,7 @@ class SkipGram:
         self.accLoss = 0
         self.trainWords = 0
         self.minCounts = minCount
-        self.epoch = epochs
+        self.epochs = epochs
         self.lr = lr
 
         # Count all the occurence of the words
@@ -66,8 +66,8 @@ class SkipGram:
 
         #Initialize the embeddings randomly
         self.n_vocab = len(self.vocab.values())
-        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.01   #Scale down the initialization otherwise there are some overflows
-        self.C = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.01
+        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001   #Scale down the initialization otherwise there are some overflows
+        self.C = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.001
 
 
     def sample(self, omit):
@@ -83,26 +83,28 @@ class SkipGram:
 
     def train(self):
         self.loss = []
-        for counter, sentence in enumerate(self.trainset):
-            sentence = list(filter(lambda word: word in self.vocab, sentence))
-            for wpos, word in enumerate(sentence):
-                wIdx = self.w2id[word]
-                winsize = np.random.randint(self.winSize) + 1
-                start = max(0, wpos - winsize)
-                end = min(wpos + winsize + 1, len(sentence))
-                for context_word in sentence[start:end]:
-                    ctxtId = self.w2id[context_word]
-                    if ctxtId == wIdx: continue
-                    negativeIds = self.sample({wIdx, ctxtId})
-                    self.trainWord(wIdx, ctxtId, negativeIds)
-                    self.trainWords += 1
+        for i in range(self.epochs):
+            print(f"Training Epoch {i}")
+            for counter, sentence in enumerate(self.trainset):
+                sentence = list(filter(lambda word: word in self.vocab, sentence))
+                for wpos, word in enumerate(sentence):
+                    wIdx = self.w2id[word]
+                    winsize = np.random.randint(self.winSize) + 1
+                    start = max(0, wpos - winsize)
+                    end = min(wpos + winsize + 1, len(sentence))
+                    for context_word in sentence[start:end]:
+                        ctxtId = self.w2id[context_word]
+                        if ctxtId == wIdx: continue
+                        negativeIds = self.sample({wIdx, ctxtId})
+                        self.trainWord(wIdx, ctxtId, negativeIds)
+                        self.trainWords += 1
+                if counter % 100 == 0:
+                    print(' > training %d of %d' % (counter, len(self.trainset)))
 
-            if counter % 100 == 0:
-                print(' > training %d of %d' % (counter, len(self.trainset)))
-                self.loss.append(self.accLoss / self.trainWords)
-                print(f'    > loss {self.loss[-1]}')
-                self.trainWords = 0
-                self.accLoss = 0.
+            self.loss.append(self.accLoss / self.trainWords)
+            print(f'    > loss {self.loss[-1]}')
+            self.trainWords = 0
+            self.accLoss = 0.
 
     def trainWord(self, wordId, contextId, negativeIds):
         vc = self.C[contextId]
