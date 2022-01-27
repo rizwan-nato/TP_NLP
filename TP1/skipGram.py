@@ -125,8 +125,7 @@ class SkipGram:
         # According to the paper, function to maximize: $log \sigma(v_c . v_w) + \sum_{negative_context} log \sigma (-v_c_neg . v.w)$
         # We can define the following loss:
         word_context = sigma(vw, vc)
-        loss = -(np.log(word_context) + np.sum([np.log(sigma(-vw, self.C[neg_id])) for neg_id in negativeIds]) ) 
-        self.accLoss += loss
+        loss = -(np.log(word_context))
 
         # Backpropagate the gradient. The training parameters are vw, vc and all the vc for negative sampling
         gradient_vw = (word_context-1) * vc
@@ -134,11 +133,15 @@ class SkipGram:
         for neg_id in negativeIds:
             vc_neg = self.C[neg_id]
             word_neg_context = sigma(-vw, vc_neg)
+            loss -= np.log(word_neg_context)
             gradient_vw += (1 - word_neg_context) * vc_neg
             gradient_c_neg = (1 - word_neg_context) * vw
             self.C[neg_id] -= self.lr * gradient_c_neg
+        
         self.C[contextId] -= self.lr * gradient_vc
         self.W[wordId] -= self.lr * gradient_vw
+        
+        self.accLoss += loss
 
 
     def save(self, path):
