@@ -87,7 +87,7 @@ then
 fi
 
 
-echo "INFO: cleaning up"
-rm $RESULTFILE
+# echo "INFO: cleaning up"
+# rm $RESULTFILE
 
 
