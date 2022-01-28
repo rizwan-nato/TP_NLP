@@ -41,7 +41,7 @@ def sigma(x,y):
 
 
 class SkipGram:
-    def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize=5, minCount=5, epochs = 2, lr = 1e-3):
+    def __init__(self, sentences, nEmbed=100, negativeRate=5, winSize=5, minCount=5):
         self.w2id = {}  # word to ID mapping
         self.trainset = sentences  # set of sentences
         self.vocab = {}  # list of valid words and the P(w)
@@ -52,8 +52,7 @@ class SkipGram:
         self.accLoss = 0
         self.trainWords = 0
         self.minCounts = minCount
-        self.epochs = epochs
-        self.lr = lr
+        self.epochs_trained = 0
 
         count = {}
         # Count all the occurence of the words
@@ -94,9 +93,10 @@ class SkipGram:
                 neg_ids.append(id)
         return neg_ids
 
-    def train(self):
-        for i in range(self.epochs):
-            print(f"Training Epoch {i+1}")
+    def train(self, epochs=1, lr=1e-2):
+        for i in range(epochs):
+            self.epochs_trained +=1
+            print(f"Training Epoch {self.epochs_trained}")
             for counter, sentence in enumerate(self.trainset):
                 sentence = list(filter(lambda word: word in self.vocab, sentence))
                 for wpos, word in enumerate(sentence):
@@ -108,7 +108,7 @@ class SkipGram:
                         ctxtId = self.w2id[context_word]
                         if ctxtId == wIdx: continue
                         negativeIds = self.sample({wIdx, ctxtId})
-                        self.trainWord(wIdx, ctxtId, negativeIds)
+                        self.trainWord(wIdx, ctxtId, negativeIds, lr)
                         self.trainWords += 1
                 if counter % 100 == 0:
                     print(' > training %d of %d' % (counter, len(self.trainset)))
@@ -118,7 +118,7 @@ class SkipGram:
                     self.trainWords = 0
                     self.accLoss = 0.
 
-    def trainWord(self, wordId, contextId, negativeIds):
+    def trainWord(self, wordId, contextId, negativeIds, lr):
         vc = self.C[contextId]
         vw = self.W[wordId]
         # According to the paper, function to maximize: $log \sigma(v_c . v_w) + \sum_{negative_context} log \sigma (-v_c_neg . v.w)$
@@ -135,10 +135,10 @@ class SkipGram:
             loss -= np.log(word_neg_context)
             gradient_vw += (1 - word_neg_context) * vc_neg
             gradient_c_neg = (1 - word_neg_context) * vw
-            self.C[neg_id] -= self.lr * gradient_c_neg
+            self.C[neg_id] -= lr * gradient_c_neg
         
-        self.C[contextId] -= self.lr * gradient_vc
-        self.W[wordId] -= self.lr * gradient_vw
+        self.C[contextId] -= lr * gradient_vc
+        self.W[wordId] -= lr * gradient_vw
         
         self.accLoss += loss
 
@@ -155,8 +155,7 @@ class SkipGram:
             'nEmbed': self.nEmbed,
             'loss': self.loss,
             'minCounts': self.minCounts,
-            'epochs': self.epochs,
-            'lr': self.lr
+            'epochs_trained': self.epochs_trained,
         }
         with open(path, 'wb') as f:
             pickle.dump(data, f)
@@ -173,10 +172,10 @@ class SkipGram:
             ind2 = self.w2id[word2]
 
             cosine_sim = np.sum(self.W[ind1]*self.W[ind2]) / (np.linalg.norm(self.W[ind1]) * np.linalg.norm(self.W[ind2])) 
-            # Map unkown word -> commun vector.
-            return 1 - cosine_sim
+            # Map unkown word -> commun vector?
+            return cosine_sim
         else:
-            return 0.5
+            return 0
 
     @staticmethod
     def load(path):
@@ -184,8 +183,15 @@ class SkipGram:
             data = pickle.load(f)
         sg = SkipGram(sentences=data["trainset"])
         sg.W = data["W"]
+        sg.C = data["C"]
         sg.vocab = data["vocab"]
         sg.w2id = data["w2id"]
+        sg.negativeRate = data["negativeRate"]
+        sg.winSize = data["winSize"]
+        sg.nEmbed = data["nEmber"]
+        sg.loss = data["loss"]
+        sg.minCounts = data["minCounts"]
+        sg.epochs_trained = data["epochs_trained"]
         return sg
 
 
