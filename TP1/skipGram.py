@@ -206,8 +206,8 @@ if __name__ == '__main__':
 
     if not opts.test:
         sentences = text2sentences(opts.text)
-        sg = SkipGram(sentences, minCount=1, nEmbed=300, epochs=1, lr=1e-2)
-        sg.train()
+        sg = SkipGram(sentences, minCount=1, nEmbed=300)
+        sg.train(epochs=5, lr=1e-2)
         sg.save(opts.model)
 
     else:
