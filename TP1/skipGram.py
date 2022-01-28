@@ -173,9 +173,8 @@ class SkipGram:
             ind2 = self.w2id[word2]
 
             cosine_sim = np.sum(self.W[ind1]*self.W[ind2]) / (np.linalg.norm(self.W[ind1]) * np.linalg.norm(self.W[ind2])) 
-            #Pas entre 0 et 1
             # Map unkown word -> commun vector.
-            return cosine_sim
+            return 1 - cosine_sim
         else:
             return 0.5
 
