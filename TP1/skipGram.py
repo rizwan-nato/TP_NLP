@@ -16,12 +16,14 @@ __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pa
               'zineb.lahrichi@student-cs.fr']
 
 
-def text2sentences(path, lemma=False):
+def text2sentences(path, number_of_line= 1000, lemma=False):
     # feel free to make a better tokenization/pre-processing
     sentences = []
     nlp = spacy.load("en_core_web_sm")
     with open(path) as f:
-        for l in f:
+        for counter, l in enumerate(tqdm(f, total=number_of_line)):
+            if counter >= number_of_line:
+                break
             sentence = []
             doc = nlp(l.lower())
             for token in doc:
@@ -66,10 +68,12 @@ class SkipGram:
                     count[word] += 1
                 else:
                     count[word] = 1
-
+        self.vocab["<UKN>"] = 0
         for word in count:
             if count[word] >= self.minCounts:
                 self.vocab[word] = count[word]
+            else:
+                self.vocab["<UKN>"] +=1
         # Create a mapping from word to id and compute P(w)
         for id, word in enumerate(self.vocab):
             self.w2id[word] = id
@@ -97,7 +101,7 @@ class SkipGram:
         """samples negative words, ommitting those in set omit"""
         neg_ids = []
         while len(neg_ids) < self.negativeRate:
-            id = self.unigram_table[np.random.randint(0, self.unigram_size+1)]
+            id = self.unigram_table[np.random.randint(0, self.unigram_size)]
             if id not in omit:
                 neg_ids.append(id)
         return neg_ids
@@ -106,14 +110,20 @@ class SkipGram:
         for i in range(epochs):
             print(f"Training Epoch {self.epochs_trained + 1}")
             for sentence in tqdm(self.trainset):
-                sentence = list(filter(lambda word: word in self.vocab, sentence))
+                # sentence = list(filter(lambda word: word in self.vocab, sentence))
                 for wpos, word in enumerate(sentence):
-                    wIdx = self.w2id[word]
+                    if word in self.vocab:
+                        wIdx = self.w2id[word]
+                    else:
+                        wIdx = self.w2id["<UKN>"]
                     winsize = np.random.randint(self.winSize) + 1
                     start = max(0, wpos - winsize)
                     end = min(wpos + winsize + 1, len(sentence))
                     for context_word in sentence[start:end]:
-                        ctxtId = self.w2id[context_word]
+                        if context_word in self.vocab:
+                            ctxtId = self.w2id[context_word]
+                        else:
+                            ctxtId = self.w2id["<UKN>"]
                         if ctxtId == wIdx: continue
                         negativeIds = self.sample({wIdx, ctxtId})
                         self.trainWord(wIdx, ctxtId, negativeIds, lr)
@@ -164,8 +174,6 @@ class SkipGram:
             'loss': self.loss,
             'minCounts': self.minCounts,
             'epochs_trained': self.epochs_trained,
-            'unigram_size': self.unigram_size,
-            'unigram_table': self.unigram_table
         }
         with open(path, 'wb') as f:
             pickle.dump(data, f)
@@ -177,37 +185,33 @@ class SkipGram:
         :param word2:
         :return: a float \in [0,1] indicating the similarity (the higher the more similar)
         """
-
+        unknown = False
         if word1 in self.vocab:
-          w1_emb = self.W[self.w2id[word1]]# + self.C[self.w2id[word1]]
+            w1_emb = self.W[self.w2id[word1]]
         else:
-          return 0
+            w1_emb = self.W[self.w2id["<UKN>"]]
+            unknown = True
         
         if word2 in self.vocab:
-          w2_emb = self.W[self.w2id[word2]] #+ self.C[self.w2id[word2]]
+            w2_emb = self.W[self.w2id[word2]]
         else:
-          return 0
+            w2_emb = self.W[self.w2id["<UKN>"]]
+            unknown = True
         cosine = np.sum(w1_emb*w2_emb) / (np.linalg.norm(w1_emb)*np.linalg.norm(w2_emb))
-        return cosine
+        return cosine, unknown
         
 
     @staticmethod
     def load(path):
         with open(path, 'rb') as f:
             data = pickle.load(f)
-        sg = SkipGram(sentences=data["trainset"])
+        sg = SkipGram(sentences=data["trainset"], nEmbed=data["nEmbed"], negativeRate=data["negativeRate"], winSize=data["winSize"], minCount=data["minCounts"])
         sg.W = data["W"]
         sg.C = data["C"]
-        sg.vocab = data["vocab"]
-        sg.w2id = data["w2id"]
-        sg.negativeRate = data["negativeRate"]
-        sg.winSize = data["winSize"]
-        sg.nEmbed = data["nEmbed"]
+        # sg.vocab = data["vocab"]
+        # sg.w2id = data["w2id"]
         sg.loss = data["loss"]
-        sg.minCounts = data["minCounts"]
         sg.epochs_trained = data["epochs_trained"]
-        sg.unigram_table = data["unigram_table"]
-        sg.unigram_size = data["unigram_size"]
         return sg
 
 
@@ -235,14 +239,5 @@ if __name__ == '__main__':
         for a, b, y_true in pairs:
             # make sure this does not raise any exception, even if a or b are not in sg.vocab
             pred = sg.similarity(a,b)
-            if pred == 0.5:
-                compteur += 1
-            print(pred, y_true)
-            Y_pred.append(pred*10)
-            Y_true.append(y_true)
-        Y_pred = np.array(Y_pred)
-        Y_true = np.array(Y_true)
-        print("Errors")
-        print(mean_squared_error(Y_true, Y_pred))
-        print(mean_squared_error(Y_true, [5 for y in Y_pred]))
-        print(compteur)
+            print(pred)
+
