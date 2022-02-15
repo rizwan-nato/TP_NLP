@@ -16,24 +16,30 @@ __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pa
               'zineb.lahrichi@student-cs.fr']
 
 
-def text2sentences(path, number_of_line= 1000, lemma=False):
+def text2sentences(path, number_of_line=np.inf):
     # feel free to make a better tokenization/pre-processing
+    '''
+    Input
+      Path: Path of the text file
+      Number_of_line: Number of line we want to load. If not specified we will load the complete text file
+    '''
     sentences = []
+    sentences_lemma = []
     nlp = spacy.load("en_core_web_sm")
     with open(path) as f:
-        for counter, l in enumerate(tqdm(f, total=number_of_line)):
+        for counter, l in enumerate(f):
             if counter >= number_of_line:
                 break
             sentence = []
+            sentence_lemma = []
             doc = nlp(l.lower())
             for token in doc:
-                if token.is_alpha:
-                    if lemma:
-                        sentence.append(token.lemma_)
-                    else:
-                        sentence.append(token.text)
+                if token.is_alpha: 
+                    sentence_lemma.append(token.lemma_)
+                    sentence.append(token.text)
             sentences.append( sentence )
-    return sentences
+            sentences_lemma.append( sentence_lemma )
+    return sentences, sentences_lemma
 
 
 def loadPairs(path):
@@ -68,6 +74,7 @@ class SkipGram:
                     count[word] += 1
                 else:
                     count[word] = 1
+        #Create Unknown token
         self.vocab["<UKN>"] = 0
         for word in count:
             if count[word] >= self.minCounts:
@@ -83,12 +90,12 @@ class SkipGram:
         for word in self.vocab:
             self.vocab[word] = self.vocab[word] / total
 
-        #Initialize the embeddings randomly
+        #Initialize the embeddings randomly. Should not be too big at the start of the training, the loss is too high at the start otherwise
         self.n_vocab = len(self.vocab.values())
-        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.1 # Start with a better loss 
+        self.W = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.1 
         self.C = np.random.random(size=(self.n_vocab, self.nEmbed)) * 0.1
 
-        #Create the unigram table
+        #Create the unigram table for the negative sampling.
         list_to_choose = list(self.vocab.keys())
         list_to_choose = [self.w2id[word] for word in list_to_choose]
         probability = list(self.vocab.values())
@@ -101,7 +108,7 @@ class SkipGram:
         """samples negative words, ommitting those in set omit"""
         neg_ids = []
         while len(neg_ids) < self.negativeRate:
-            id = self.unigram_table[np.random.randint(0, self.unigram_size)]
+            id = self.unigram_table[np.random.randint(0, self.unigram_size)] #Select randomly from unigram table
             if id not in omit:
                 neg_ids.append(id)
         return neg_ids
@@ -109,9 +116,9 @@ class SkipGram:
     def train(self, epochs=1, lr=1e-2):
         for i in range(epochs):
             print(f"Training Epoch {self.epochs_trained + 1}")
-            for sentence in tqdm(self.trainset):
-                # sentence = list(filter(lambda word: word in self.vocab, sentence))
+            for sentence in self.trainset:
                 for wpos, word in enumerate(sentence):
+                    # If the word or context is not in vocabulary, we remplace it with the unknown token
                     if word in self.vocab:
                         wIdx = self.w2id[word]
                     else:
@@ -185,6 +192,7 @@ class SkipGram:
         :param word2:
         :return: a float \in [0,1] indicating the similarity (the higher the more similar)
         """
+        # If the words are not in the vocabulary, we take the embedding of the unkonwn token. Then compute the cosine similarity.
         unknown = False
         if word1 in self.vocab:
             w1_emb = self.W[self.w2id[word1]]
@@ -208,12 +216,19 @@ class SkipGram:
         sg = SkipGram(sentences=data["trainset"], nEmbed=data["nEmbed"], negativeRate=data["negativeRate"], winSize=data["winSize"], minCount=data["minCounts"])
         sg.W = data["W"]
         sg.C = data["C"]
-        # sg.vocab = data["vocab"]
-        # sg.w2id = data["w2id"]
         sg.loss = data["loss"]
         sg.epochs_trained = data["epochs_trained"]
         return sg
 
+def run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping = 1e-3, name="model"):
+    for i, lr in zip(range(Number_of_epochs), Learning_rate_Schedule):
+        sg.train(epochs=1, lr=lr)
+        sg.save(name)
+        pairs = loadPairs("simlex.csv")
+        if i > 0:
+            if sg.loss[-2] - sg.loss[-1] < early_stopping:
+                print("Early stopping..")
+                break;
 
 if __name__ == '__main__':
 
@@ -225,10 +240,14 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     if not opts.test:
-        sentences = text2sentences(opts.text)
-        sg = SkipGram(sentences, minCount=1, nEmbed=300)
-        sg.train(epochs=5, lr=1e-2)
-        sg.save(opts.model)
+        Learning_rate_Schedule =  [1e-2]*200
+        Number_of_epochs = 200
+        nEmbed = 300
+        winSize = 9
+        minCount = 2
+        sentences_no_lemma, sentences_with_lemma = text2sentences(opts.text)
+        sg = SkipGram(sentences=sentences_with_lemma, minCount=minCount, nEmbed=nEmbed, winSize=winSize, negativeRate=5)
+        run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping=5*1e-3, name=opts.model)
 
     else:
         compteur = 0
@@ -239,5 +258,5 @@ if __name__ == '__main__':
         for a, b, y_true in pairs:
             # make sure this does not raise any exception, even if a or b are not in sg.vocab
             pred = sg.similarity(a,b)
-            print(pred)
+            print(pred[0])
 
