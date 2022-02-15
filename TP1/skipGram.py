@@ -7,9 +7,9 @@ import pandas as pd
 import spacy
 import numpy as np
 import re
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import normalize
-from tqdm import tqdm
+from scipy.stats import pearsonr
+from time import time
+
 
 __authors__ = ['Rizwan Nato', 'Philippe Formont', 'Pauline Berberi', 'Zineb Lahrichi']
 __emails__ = ['rizwan.nato@student-cs.fr', 'philippe.formont@student-cs.fr', 'pauline.berberi@student-cs.fr',
@@ -220,14 +220,17 @@ class SkipGram:
         sg.epochs_trained = data["epochs_trained"]
         return sg
 
-def run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping = 1e-3, name="model"):
+def run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping = 1e-3, name="mymodel.model", max_time=40*60*60):
+    start_time=time()
     for i, lr in zip(range(Number_of_epochs), Learning_rate_Schedule):
         sg.train(epochs=1, lr=lr)
         sg.save(name)
-        pairs = loadPairs("simlex.csv")
+        if time()-start_time > max_time:
+            print("Maximum Training time reached, stopping...")
+            break
         if i > 0:
             if sg.loss[-2] - sg.loss[-1] < early_stopping:
-                print("Early stopping..")
+                print("Early stopping...")
                 break;
 
 if __name__ == '__main__':
@@ -240,6 +243,7 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     if not opts.test:
+        spacy.cli.download("en_core_web_sm")  #Make sure the spacy model is downloaded
         Learning_rate_Schedule =  [1e-2]*200
         Number_of_epochs = 200
         nEmbed = 300
@@ -247,7 +251,7 @@ if __name__ == '__main__':
         minCount = 2
         sentences_no_lemma, sentences_with_lemma = text2sentences(opts.text)
         sg = SkipGram(sentences=sentences_with_lemma, minCount=minCount, nEmbed=nEmbed, winSize=winSize, negativeRate=5)
-        run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping=5*1e-3, name=opts.model)
+        run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping=5*1e-3, name=opts.model, max_time=40*60*60) #Maximum training time of 40hours
 
     else:
         compteur = 0
@@ -259,4 +263,7 @@ if __name__ == '__main__':
             # make sure this does not raise any exception, even if a or b are not in sg.vocab
             pred = sg.similarity(a,b)
             print(pred[0])
+            Y_true.append(y_true)
+            Y_pred.append(pred[0])
+        print(pearsonr(Y_true, Y_pred))
 
