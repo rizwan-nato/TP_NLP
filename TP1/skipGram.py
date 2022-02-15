@@ -265,5 +265,5 @@ if __name__ == '__main__':
             print(pred[0])
             Y_true.append(y_true)
             Y_pred.append(pred[0])
-        print(pearsonr(Y_true, Y_pred))
+        # print(pearsonr(Y_true, Y_pred))
 
