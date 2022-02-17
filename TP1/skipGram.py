@@ -9,6 +9,7 @@ import numpy as np
 import re
 from scipy.stats import pearsonr
 from time import time
+from tqdm import tqdm
 
 
 __authors__ = ['Rizwan Nato', 'Philippe Formont', 'Pauline Berberi', 'Zineb Lahrichi']
@@ -23,11 +24,14 @@ def text2sentences(path, number_of_line=np.inf):
       Path: Path of the text file
       Number_of_line: Number of line we want to load. If not specified we will load the complete text file
     '''
+    print("Pre processing sentences")
     sentences = []
     sentences_lemma = []
     nlp = spacy.load("en_core_web_sm")
+    num_lines = sum(1 for line in open(path))
+    total = min(num_lines, number_of_line)
     with open(path) as f:
-        for counter, l in enumerate(f):
+        for counter, l in enumerate(tqdm(f, total=total)):
             if counter >= number_of_line:
                 break
             sentence = []
@@ -113,10 +117,10 @@ class SkipGram:
                 neg_ids.append(id)
         return neg_ids
 
-    def train(self, epochs=1, lr=1e-2):
+    def train(self, epochs, lr, start_time, max_time):
         for i in range(epochs):
             print(f"Training Epoch {self.epochs_trained + 1}")
-            for sentence in self.trainset:
+            for sentence in tqdm(self.trainset, total=len(self.trainset)):
                 for wpos, word in enumerate(sentence):
                     # If the word or context is not in vocabulary, we remplace it with the unknown token
                     if word in self.vocab:
@@ -135,6 +139,9 @@ class SkipGram:
                         negativeIds = self.sample({wIdx, ctxtId})
                         self.trainWord(wIdx, ctxtId, negativeIds, lr)
                         self.trainWords += 1
+                if time()-start_time > max_time:
+                    print("Maximum Training time reached, stopping...")
+                    return
                 
 
             self.loss.append(self.accLoss / self.trainWords)
@@ -220,13 +227,12 @@ class SkipGram:
         sg.epochs_trained = data["epochs_trained"]
         return sg
 
-def run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping = 1e-3, name="mymodel.model", max_time=40*60*60):
-    start_time=time()
+def run_training(sg, Number_of_epochs, Learning_rate_Schedule, start_time, max_time, early_stopping = 1e-3, name="mymodel.model"):
     for i, lr in zip(range(Number_of_epochs), Learning_rate_Schedule):
-        sg.train(epochs=1, lr=lr)
+        sg.train(epochs=1, lr=lr, start_time=start_time, max_time=max_time)
+        print("Saving")
         sg.save(name)
         if time()-start_time > max_time:
-            print("Maximum Training time reached, stopping...")
             break
         if i > 0:
             if sg.loss[-2] - sg.loss[-1] < early_stopping:
@@ -243,6 +249,8 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     if not opts.test:
+        start_time = time()
+        max_time = 47*60*60 + 30*60   #47hours 30min of training: maximum is 48h. We take some margins
         spacy.cli.download("en_core_web_sm")  #Make sure the spacy model is downloaded
         Learning_rate_Schedule =  [1e-2]*200
         Number_of_epochs = 200
@@ -251,19 +259,13 @@ if __name__ == '__main__':
         minCount = 2
         sentences_no_lemma, sentences_with_lemma = text2sentences(opts.text)
         sg = SkipGram(sentences=sentences_with_lemma, minCount=minCount, nEmbed=nEmbed, winSize=winSize, negativeRate=5)
-        run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping=5*1e-3, name=opts.model, max_time=40*60*60) #Maximum training time of 40hours
+        run_training(sg, Number_of_epochs, Learning_rate_Schedule, early_stopping=5*1e-3, name=opts.model, max_time=max_time, start_time=start_time) #Maximum training time of 40hours
 
     else:
         compteur = 0
         pairs = loadPairs(opts.text)
         sg = SkipGram.load(opts.model)
-        Y_true = []
-        Y_pred = []
         for a, b, y_true in pairs:
             # make sure this does not raise any exception, even if a or b are not in sg.vocab
             pred = sg.similarity(a,b)
             print(pred[0])
-            Y_true.append(y_true)
-            Y_pred.append(pred[0])
-        # print(pearsonr(Y_true, Y_pred))
-
